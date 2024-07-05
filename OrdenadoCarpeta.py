@@ -4,9 +4,11 @@ import webbrowser
 import requests
 from bs4 import BeautifulSoup
 import os
+import threading
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 import time
+import hashlib
 
 # Número máximo de hilos simultáneos
 MAX_WORKERS = 10
@@ -18,6 +20,14 @@ def abrir_linkedin():
 # Función para abrir la carpeta de descargas
 def abrir_carpeta_imagenes():
     os.startfile(base_directory)
+
+# Función para calcular el hash de un archivo
+def file_hash(file_path):
+    hasher = hashlib.md5()
+    with open(file_path, 'rb') as f:
+        buf = f.read()
+        hasher.update(buf)
+    return hasher.hexdigest()
 
 # Función para descargar una imagen con reintentos
 def download_image(image_url, filename, folder):
@@ -51,7 +61,7 @@ def download_image(image_url, filename, folder):
     print(f"Fallo la descarga de la imagen después de {retries} intentos: {image_url}")
 
 # Función para procesar una URL y descargar imágenes
-def process_url(url, folder_name, codigo_padre):
+def process_url(url, folder_name, codigo_padre, downloaded_hashes):
     # Crear la carpeta si no existe
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
@@ -64,7 +74,6 @@ def process_url(url, folder_name, codigo_padre):
 
     if image_elements:
         image_number = 1
-        downloaded_images = set()
 
         for image_element in image_elements:
             image_url = image_element.get('data-src') or image_element.get('src')
@@ -76,20 +85,30 @@ def process_url(url, folder_name, codigo_padre):
             # Obtener la URL de la imagen en máxima calidad (2500x2500)
             image_url = image_url.replace('w=1000', 'w=2500').replace('h=1000', 'h=2500')
 
-            if image_url and image_url.startswith('http') and image_url not in downloaded_images:
+            if image_url and image_url.startswith('http'):
                 print(f"URL de la imagen del producto encontrada: {image_url}")
                 # Definir el nombre del archivo con el esquema proporcionado
                 filename = f"{codigo_padre}-{image_number}.jpg"
                 download_image(image_url, filename, folder_name)
-                downloaded_images.add(image_url)
-                image_number += 1
+                # Verificar el hash del archivo descargado para evitar duplicados
+                file_path = os.path.join(folder_name, filename)
+                if os.path.exists(file_path):
+                    file_hash_value = file_hash(file_path)
+                    if file_hash_value in downloaded_hashes:
+                        print(f"Imagen duplicada detectada y eliminada: {filename}")
+                        os.remove(file_path)
+                    else:
+                        downloaded_hashes.add(file_hash_value)
+                        image_number += 1
             else:
-                print("No se encontró la URL de la imagen del producto, es inválida, o ya fue descargada.")
+                print("No se encontró la URL de la imagen del producto o es inválida.")
     else:
         print("No se encontraron elementos de imagen del producto en la página.")
 
 # Función para generar URLs y comenzar la descarga de imágenes
 def generar_y_descargar():
+    # Crear un conjunto para almacenar hashes de imágenes descargadas
+    downloaded_hashes = set()
     lines = text_area.get('1.0', tk.END).strip().split('\n')
     codigos_y_carpetas = [line.split('\t') for line in lines if line]
     pais = country_var.get()
@@ -111,7 +130,7 @@ def generar_y_descargar():
         for codigo, carpeta in codigos_y_carpetas:
             folder_name = os.path.join(base_directory, carpeta)
             url = f"https://www.marathon.store/{pais}/p/{codigo}"
-            executor.submit(process_url, url, folder_name, codigo)
+            executor.submit(process_url, url, folder_name, codigo, downloaded_hashes)
 
     messagebox.showinfo("Descarga Iniciada", "La descarga de imágenes ha comenzado en segundo plano.")
 
@@ -133,7 +152,7 @@ for pais in paises:
     boton.pack(side=tk.LEFT)
 
 # Botón para generar URLs y descargar imágenes
-generar_button = tk.Button(root, text="Descargar Imágenes MARATHON", command=generar_y_descargar)
+generar_button = tk.Button(root, text="Descargar Imágenes MARATHON", command=lambda: threading.Thread(target=generar_y_descargar).start())
 generar_button.pack(side=tk.BOTTOM, fill=tk.X)
 
 # Botón para abrir la carpeta de imágenes
