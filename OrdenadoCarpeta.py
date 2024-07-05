@@ -4,7 +4,6 @@ import webbrowser
 import requests
 from bs4 import BeautifulSoup
 import os
-import threading
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 import time
@@ -65,6 +64,7 @@ def process_url(url, folder_name, codigo_padre):
 
     if image_elements:
         image_number = 1
+        downloaded_images = set()
 
         for image_element in image_elements:
             image_url = image_element.get('data-src') or image_element.get('src')
@@ -73,18 +73,18 @@ def process_url(url, folder_name, codigo_padre):
             elif image_url.startswith('/'):
                 image_url = 'https://www.marathon.store' + image_url
 
-            # Asegurarse de utilizar la URL de la imagen de máxima calidad
-            if 'w=1000' in image_url:
-                image_url = image_url.replace('w=1000', 'w=2000')
+            # Obtener la URL de la imagen en máxima calidad (2500x2500)
+            image_url = image_url.replace('w=1000', 'w=2500').replace('h=1000', 'h=2500')
 
-            if image_url and image_url.startswith('http'):
+            if image_url and image_url.startswith('http') and image_url not in downloaded_images:
                 print(f"URL de la imagen del producto encontrada: {image_url}")
                 # Definir el nombre del archivo con el esquema proporcionado
                 filename = f"{codigo_padre}-{image_number}.jpg"
                 download_image(image_url, filename, folder_name)
+                downloaded_images.add(image_url)
                 image_number += 1
             else:
-                print("No se encontró la URL de la imagen del producto o es inválida.")
+                print("No se encontró la URL de la imagen del producto, es inválida, o ya fue descargada.")
     else:
         print("No se encontraron elementos de imagen del producto en la página.")
 
