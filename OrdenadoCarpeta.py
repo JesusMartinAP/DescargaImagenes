@@ -1,19 +1,3 @@
-"""
-Descargador de Imágenes de Productos de Marathon
-
-Este script permite descargar imágenes de productos de Marathon a partir de códigos de productos.
-Los códigos y los nombres de las carpetas donde se guardarán las imágenes deben ser pegados en
-un área de texto en formato de dos columnas. La primera columna contiene el código del producto
-y la segunda columna el nombre de la carpeta.
-
-Las imágenes se guardarán en una carpeta principal creada en el directorio donde se ejecuta
-el script, con el nombre "Descarga Img" seguido de la fecha actual. Cada código de producto tendrá
-su propia subcarpeta con el nombre especificado, y las imágenes se nombrarán siguiendo el
-esquema "codigo_padre-numero.jpg".
-
-El script utiliza tkinter para la interfaz gráfica y BeautifulSoup para el análisis de HTML.
-"""
-
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
 import webbrowser
@@ -42,6 +26,12 @@ def download_image(image_url, filename, folder):
         print(f"URL inválida, se omitirá la descarga: {image_url}")
         return
     
+    # Verificar si la imagen ya existe para evitar descargas repetidas
+    file_path = os.path.join(folder, filename)
+    if os.path.exists(file_path):
+        print(f"Imagen ya existe y se omitirá la descarga: {filename}")
+        return
+    
     retries = 3
     for attempt in range(retries):
         try:
@@ -49,7 +39,7 @@ def download_image(image_url, filename, folder):
             response = requests.get(image_url, timeout=10)
             print(f"Código de estado de la descarga: {response.status_code}")
             if response.status_code == 200:
-                with open(os.path.join(folder, filename), 'wb') as file:
+                with open(file_path, 'wb') as file:
                     file.write(response.content)
                 print(f"Imagen guardada como: {filename}")
                 return
@@ -82,6 +72,10 @@ def process_url(url, folder_name, codigo_padre):
                 image_url = 'https:' + image_url
             elif image_url.startswith('/'):
                 image_url = 'https://www.marathon.store' + image_url
+
+            # Asegurarse de utilizar la URL de la imagen de máxima calidad
+            if 'w=1000' in image_url:
+                image_url = image_url.replace('w=1000', 'w=2000')
 
             if image_url and image_url.startswith('http'):
                 print(f"URL de la imagen del producto encontrada: {image_url}")
